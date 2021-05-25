@@ -1,5 +1,6 @@
 import traceback
-import urllib.request
+import logging
+import contextlib
 
 import pickle5 as pickle
 # import pickle as pickle
@@ -24,13 +25,30 @@ from prawcore import ServerError
 from search_online_std import search_online_std
 
 
+def logger_setup():
+    now: datetime = datetime.now()
+    logging.basicConfig(f"std_bot_log_{now.year}_{now.month}_{now.day}.txt",
+                        format = "%(asctime)s - %(levelname)s\n\t%(message)s\n",
+                        encoding = "utf-8",
+                        level = logging.DEBUG)
+    logger = logging.getLogger()
+    default_handler = logging.root.handlers[0]
+    stderr_handler = logging.StreamHandler()
+    stderr_handler.setLevel(logging.DEBUG)
+    stderr_handler.setFormatter(default_handler.formatter)
+    logger.addHandler(stderr_handler)
+
+
+LOGGER = logger_setup()
+
+
 class Link:
     def __init__(self, link, expires):
         self.link: str = link
         self.expires: datetime = expires
 
     def __str__(self):
-        return "[link: " + (self.link or "[None]") + ", expires: " + str(self.expires) + "]"
+        return f"[link: {self.link or '[None]'}, expires: {self.expires}]"
 
 
 class Thread:
@@ -41,7 +59,7 @@ class Thread:
         self.expires: datetime = _expires
 
     def __str__(self):
-        return "[id: " + self.id + ", expires: " + str(self.expires) + "]"
+        return f"[id: {self.id}, expires: {self.expires}]"
 
 
 class UserSetting(Enum):
@@ -63,19 +81,6 @@ current_thread_id: str
 reddit: Reddit
 
 
-def __log(log_line: str):
-    print(log_line)
-
-    try:
-        now: datetime = datetime.now()
-        file_name: str = "std_bot_log_{}_{}_{}.txt".format(now.year, now.month, now.day)
-        file: TextIO = open(file_name, "a", encoding="utf-8")
-        file.write(log_line)
-        file.close()
-    except UnicodeError as error:
-        print(error)
-
-
 def send_bot(message: str):
     token: str = "1546898859:AAFHlRL4qUNFHFdZqcpGTt7KNZHlzlFdTLE"
     url: str = f'https://api.telegram.org/bot{token}/sendMessage'
@@ -83,14 +88,28 @@ def send_bot(message: str):
     requests.post(url, data).json()
 
 
-def log(message: str):
-    log_line: str = "{}:\n\t{}\n".format(datetime.now(), "\n\t".join(message.splitlines()))
-    __log(log_line)
+@contextlib.contextmanager
+def temporary_log_format(logger: logging.Logger, log_format: str):
+    handlers = logger.handlers
+    old_formatters = [ handler.formatter for handler in handlers ]
+    try:
+        new_formatter = logging.Formatter(log_format)
+        for handler in handlers:
+            handler.setFormatter(new_formatter)
+        yield
+    finally:
+        for handler, formatter in zip(handlers, formatters):
+            handler.setFormatter(formatter)
+
+
+def log(message: str, *args, level = logging.DEBUG, **kwargs):
+    log_line: str = "\n\t".join(message.splitlines())
+    LOGGER.log(level, log_line, *args, **kwargs)
 
 
 def log_skip():
-    log_line: str = "\n\n===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== =====\n\n"
-    __log(log_line)
+    with temporary_log_format(LOGGER, '%(message)s'):
+        LOGGER.debug(log_line)
 
 
 def check_cache_for_expiration(cache: dict):
@@ -100,17 +119,17 @@ def check_cache_for_expiration(cache: dict):
             to_remove.append(key)
 
     for key in to_remove:
-        log("Removing expired cache entry ({}: {})".format(key, cache[key]))
+        log("Removing expired cache entry (%s: %s)", key, cache[key])
         cache.pop(key, None)
 
 
 def save_obj(obj, name):
-    with open('obj/' + name + '.pkl', 'wb+') as f:
+    with open(f'obj/{name}.pkl', 'wb+') as f:
         pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
 
 
 def load_obj(name):
-    with open('obj/' + name + '.pkl', 'rb') as f:
+    with open(f'obj/{name}.pkl', 'rb') as f:
         return pickle.load(f)
 
 
@@ -139,7 +158,7 @@ def get_all_comments_from_submission(submission: Submission) -> list:
 def index_op_line(line: str):
     std_set: set = find_stds_in_line(line)
     for std in std_set:
-        log("indexing OP use of ({})".format(std))
+        log("indexing OP use of (%s)", std)
         thread_cache[current_thread_id].std_set.add(std)
 
 
@@ -165,7 +184,7 @@ def index_line(line: str):
             token_start_pos = line.find("[", link_start_pos + 1)
             continue
 
-        log("indexing linked ({})".format(token))
+        log("indexing linked (%s)", token)
         thread_cache[current_thread_id].std_set.add(token.strip().strip("`"))
         token_start_pos = line.find("[", link_end_pos + 1)
 
@@ -279,19 +298,19 @@ def parse_body(body) -> set:
 
 
 def find_link_for_single_std(std: str) -> str:
-    log("searching for std ({})".format(std))
+    log("searching for std (%s)", std)
     if std in link_cache:
-        log("found std ({}) in cache".format(std))
+        log("found std (%s) in cache", std)
         link: str = link_cache[std].link
 
         if link is not None:
             return link
 
-    log("std ({}) not cached, searching online".format(std))
+    log("std (%s) not cached, searching online", std)
 
     hyperlink: str = search_online_std(std)
     if hyperlink is None:
-        log(f"Couldn't find a link for {std}")
+        log("Couldn't find a link for %s", std)
         send_bot(f"Couldn't find a link for {std}")
 
     link_cache[std] = Link(link=hyperlink, expires=datetime.now() + link_expiration_delta)
@@ -299,7 +318,7 @@ def find_link_for_single_std(std: str) -> str:
 
 
 def cache_unlinked_stds(unlinked_stds: set):
-    log("caching new linked stds: {}".format(", ".join(unlinked_stds)))
+    log("caching new linked stds: %s", unlinked_stds)
     thread_cache[current_thread_id].std_set.update(unlinked_stds)
 
     save_obj(thread_cache, "thread_cache")
@@ -354,7 +373,7 @@ def reply_with_links(comment, forced: bool):
     # Add STDs and links together
     link_list_transformed: list = list()
     for std_link in link_list:
-        link_list_transformed.append("[{}]({})".format(std_link[0], std_link[1]))
+        link_list_transformed.append(f"[{std_link[0]}]({std_link[1]})")
 
     message: str = f'Unlinked STL entries: {", ".join(link_list_transformed)}' + signature
 
@@ -489,22 +508,19 @@ def start():
             current_thread_id = comment.submission.id
             process_comment(comment)
         except ServerError as error:
-            log(str(error))
+            log("%s", error, level = logging.ERROR)
             send_bot(f"server error:\n{str(error)}")
             sleep(60)
         except Exception as e2:
+            log("error during process!\nComment:\n%s", comment.body, level = logging.ERROR, exc_info = True)
             trace2: str = f"\n{e2}\n{traceback.format_exc()}"
-            log(f"error during process!\nComment:\n{comment.body}\n\nError:\n{sys.exc_info()[0]}{trace2}")
             send_bot(f"error during process: {comment.submission.id}{trace2}")
             sleep(60)
 
 
 def can_connect(host='http://google.com'):
-    try:
-        urllib.request.urlopen(host)
-        return True
-    except:
-        return False
+    status = requests.get(host).status_code
+    return status < 400 || status >= 600
 
 
 if __name__ == '__main__':
@@ -516,7 +532,7 @@ if __name__ == '__main__':
                 sleep(60)
                 send_bot("could not connect to internet")
         except Exception as e:
+            log("something went really wrong!", level = logging.ERROR, exc_info = True)
             trace: str = f"\n{e}\n{traceback.format_exc()}"
-            log(f"something went really wrong!\nError:\n{sys.exc_info()[0]}{trace}")
             send_bot(f"really bad error.{trace}")
             sleep(60)
