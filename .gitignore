@@ -1,4 +1,5 @@
-
-*.txt
+logs/
 obj/thread_cache.pkl
 obj/link_cache.pkl
+.idea/std_bot.iml
+Auth.py

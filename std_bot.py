@@ -3,6 +3,7 @@ import logging
 
 # import pickle5 as pickle
 import pickle as pickle
+import sys
 
 import traceback
 from datetime import datetime
@@ -24,14 +25,22 @@ import Auth
 
 def logger_setup() -> logging.Logger:
     now: datetime = datetime.now()
-    logging.basicConfig(filename=f"logs/std_bot_log_{now.year}_{now.month}_{now.day}.txt",
-                        format="%(asctime)s - %(levelname)s\n\t%(message)s\n", level=logging.INFO)
-
     logger: logging.Logger = logging.getLogger()
-    default_handler: logging.Handler = logging.root.handlers[0]
-    stderr_handler: logging.StreamHandler = logging.StreamHandler()
-    stderr_handler.setLevel(logging.DEBUG)
-    stderr_handler.setFormatter(default_handler.formatter)
+    logger.setLevel(logging.INFO)
+
+    handler = logging.FileHandler(
+        filename=f"logs/std_bot_log_{now.year}_{now.month}_{now.day}.txt",
+        mode='w',
+        encoding='utf-8')
+
+    formatter = logging.Formatter(f"%(asctime)s - %(levelname)s\n\t%(message)s\n")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.addHandler(logging.StreamHandler())
+
+    stderr_handler: logging.StreamHandler = logging.StreamHandler(sys.stdout)
+    stderr_handler.setFormatter(handler.formatter)
+    stderr_handler.setLevel(logging.INFO)
     logger.addHandler(stderr_handler)
     return logger
 
