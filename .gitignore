@@ -1,0 +1,4 @@
+
+*.txt
+obj/thread_cache.pkl
+obj/link_cache.pkl

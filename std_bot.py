@@ -24,19 +24,16 @@ import Auth
 
 def logger_setup() -> logging.Logger:
     now: datetime = datetime.now()
-    logging.basicConfig(filename=f"std_bot_log_{now.year}_{now.month}_{now.day}.txt",
-                        format="%(asctime)s - %(levelname)s\n\t%(message)s\n", level=logging.DEBUG)
+    logging.basicConfig(filename=f"logs/std_bot_log_{now.year}_{now.month}_{now.day}.txt",
+                        format="%(asctime)s - %(levelname)s\n\t%(message)s\n", level=logging.INFO)
 
     logger: logging.Logger = logging.getLogger()
-    default_handler = logging.root.handlers[0]
-    stderr_handler = logging.StreamHandler()
+    default_handler: logging.Handler = logging.root.handlers[0]
+    stderr_handler: logging.StreamHandler = logging.StreamHandler()
     stderr_handler.setLevel(logging.DEBUG)
     stderr_handler.setFormatter(default_handler.formatter)
     logger.addHandler(stderr_handler)
     return logger
-
-
-LOGGER = logger_setup()
 
 
 class Link:
@@ -64,9 +61,11 @@ class UserSetting(Enum):
     none = 2
 
 
+LOGGER = logger_setup()
+
 link_expiration_delta: timedelta = timedelta(weeks=1)
 thread_expiration_delta: timedelta = timedelta(weeks=1)
-signature: str = "\n\n---\n\n^(Last update: 01.05.21. Last change: Free links considered) [readme](https://github.com/Narase33/std_bot/blob/main/README.md)"
+signature: str = "\n\n---\n\n^(Last update: 26.05.21. Last change: Free links considered) [readme](https://github.com/Narase33/std_bot/blob/main/README.md)"
 sub: str = "cpp_questions"
 # sub: str = "test"
 
@@ -99,7 +98,7 @@ def temporary_log_format(logger: logging.Logger, log_format: str):
             handler.setFormatter(formatter)
 
 
-def log(message: str, *args, level=logging.DEBUG, **kwargs):
+def log(message: str, *args, level=logging.INFO, **kwargs):
     log_line: str = "\n\t".join(message.splitlines())
     LOGGER.log(level, log_line, *args, **kwargs)
 
@@ -423,7 +422,7 @@ def process_comment(comment):
     log_skip()
 
     comment_link: str = f"({comment.id}) https://www.reddit.com{comment.permalink}"
-    log(f"{comment_link}\n{body}\n\n----- ----- ----- ----- -----\n")
+    log(f"\n\n----- ----- ----- ----- -----\n{comment_link}\n{body}")
 
     index(comment)
 
@@ -524,14 +523,8 @@ def can_connect(host='http://google.com'):
 
 if __name__ == '__main__':
     while True:
-        try:
-            if can_connect():
-                start()
-            else:
-                sleep(60)
-                send_bot("could not connect to internet")
-        except Exception as e:
-            log("something went really wrong!", level=logging.ERROR, exc_info=True)
-            trace: str = f"\n{e}\n{traceback.format_exc()}"
-            send_bot(f"really bad error.{trace}")
+        if can_connect():
+            start()
+        else:
             sleep(60)
+            send_bot("could not connect to internet")
