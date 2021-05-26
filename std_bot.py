@@ -1,14 +1,14 @@
-import traceback
-import logging
 import contextlib
+import logging
 
-import pickle5 as pickle
-# import pickle as pickle
+# import pickle5 as pickle
+import pickle as pickle
 
-import sys
+import traceback
+from datetime import datetime
+from datetime import timedelta
 from enum import Enum
 from time import sleep
-from typing import TextIO
 
 import praw
 import requests
@@ -16,27 +16,24 @@ from praw import Reddit
 from praw.models.comment_forest import CommentForest
 from praw.models.listing.mixins.redditor import SubListing
 from praw.reddit import Subreddit, Submission, Comment, Redditor
-
-from datetime import datetime
-from datetime import timedelta
-
 from prawcore import ServerError
 
 from search_online_std import search_online_std
+import Auth
 
 
-def logger_setup():
+def logger_setup() -> logging.Logger:
     now: datetime = datetime.now()
-    logging.basicConfig(f"std_bot_log_{now.year}_{now.month}_{now.day}.txt",
-                        format = "%(asctime)s - %(levelname)s\n\t%(message)s\n",
-                        encoding = "utf-8",
-                        level = logging.DEBUG)
-    logger = logging.getLogger()
+    logging.basicConfig(filename=f"std_bot_log_{now.year}_{now.month}_{now.day}.txt",
+                        format="%(asctime)s - %(levelname)s\n\t%(message)s\n", level=logging.DEBUG)
+
+    logger: logging.Logger = logging.getLogger()
     default_handler = logging.root.handlers[0]
     stderr_handler = logging.StreamHandler()
     stderr_handler.setLevel(logging.DEBUG)
     stderr_handler.setFormatter(default_handler.formatter)
     logger.addHandler(stderr_handler)
+    return logger
 
 
 LOGGER = logger_setup()
@@ -82,34 +79,34 @@ reddit: Reddit
 
 
 def send_bot(message: str):
-    token: str = "1546898859:AAFHlRL4qUNFHFdZqcpGTt7KNZHlzlFdTLE"
+    token: str = Auth.TELEGRAM_TOKEN
     url: str = f'https://api.telegram.org/bot{token}/sendMessage'
-    data = {'chat_id': 606500329, 'text': message}
+    data = {'chat_id': Auth.TELEGRAM_CHAT_ID, 'text': message}
     requests.post(url, data).json()
 
 
 @contextlib.contextmanager
 def temporary_log_format(logger: logging.Logger, log_format: str):
     handlers = logger.handlers
-    old_formatters = [ handler.formatter for handler in handlers ]
+    old_formatters = [handler.formatter for handler in handlers]
     try:
         new_formatter = logging.Formatter(log_format)
         for handler in handlers:
             handler.setFormatter(new_formatter)
         yield
     finally:
-        for handler, formatter in zip(handlers, formatters):
+        for handler, formatter in zip(handlers, old_formatters):
             handler.setFormatter(formatter)
 
 
-def log(message: str, *args, level = logging.DEBUG, **kwargs):
+def log(message: str, *args, level=logging.DEBUG, **kwargs):
     log_line: str = "\n\t".join(message.splitlines())
     LOGGER.log(level, log_line, *args, **kwargs)
 
 
 def log_skip():
     with temporary_log_format(LOGGER, '%(message)s'):
-        LOGGER.debug(log_line)
+        LOGGER.debug("")
 
 
 def check_cache_for_expiration(cache: dict):
@@ -196,7 +193,7 @@ def index_free_link_line(line: str):
     while token_start_pos != -1:
         token_end_pos: int = line.find(" ", token_start_pos + 1)
         if token_end_pos != -1:
-            links.add(line[token_start_pos: token_end_pos+1])
+            links.add(line[token_start_pos: token_end_pos + 1])
             token_start_pos = line.find("http", token_end_pos)
         else:
             links.add(line[token_start_pos:])
@@ -235,7 +232,8 @@ def index(comment):
         index_user_comment(comment)
     else:
         log("indexing unknown thread")
-        thread_cache[current_thread_id] = Thread(_expires=datetime.now() + thread_expiration_delta, _id=current_thread_id)
+        thread_cache[current_thread_id] = Thread(_expires=datetime.now() + thread_expiration_delta,
+                                                 _id=current_thread_id)
 
         submission: Submission = reddit.submission(current_thread_id)
         index_op(submission)
@@ -293,6 +291,7 @@ def parse_body(body) -> set:
         std_set.update(result)
 
     return std_set
+
 
 # ---------- comment parsing ----------
 
@@ -488,11 +487,11 @@ def debug_comment():
 
 def start():
     global reddit
-    reddit = praw.Reddit(client_id="XXX",
-                         client_secret="XXX",
-                         user_agent="XXX",
-                         username="std_bot",
-                         password="XXX")
+    reddit = praw.Reddit(client_id=Auth.REDDIT_CLIENT_ID,
+                         client_secret=Auth.REDDIT_CLIENT_SECRET,
+                         user_agent=Auth.REDDIT_USER_AGENT,
+                         username=Auth.REDDIT_USERNAME,
+                         password=Auth.REDDIT_PASSWORD)
 
     send_bot("bot starting")
 
@@ -508,11 +507,11 @@ def start():
             current_thread_id = comment.submission.id
             process_comment(comment)
         except ServerError as error:
-            log("%s", error, level = logging.ERROR)
+            log("%s", error, level=logging.ERROR)
             send_bot(f"server error:\n{str(error)}")
             sleep(60)
         except Exception as e2:
-            log("error during process!\nComment:\n%s", comment.body, level = logging.ERROR, exc_info = True)
+            log("error during process!\nComment:\n%s", comment.body, level=logging.ERROR, exc_info=True)
             trace2: str = f"\n{e2}\n{traceback.format_exc()}"
             send_bot(f"error during process: {comment.submission.id}{trace2}")
             sleep(60)
@@ -520,7 +519,7 @@ def start():
 
 def can_connect(host='http://google.com'):
     status = requests.get(host).status_code
-    return status < 400 || status >= 600
+    return status < 400 or status >= 600
 
 
 if __name__ == '__main__':
@@ -532,7 +531,7 @@ if __name__ == '__main__':
                 sleep(60)
                 send_bot("could not connect to internet")
         except Exception as e:
-            log("something went really wrong!", level = logging.ERROR, exc_info = True)
+            log("something went really wrong!", level=logging.ERROR, exc_info=True)
             trace: str = f"\n{e}\n{traceback.format_exc()}"
             send_bot(f"really bad error.{trace}")
             sleep(60)
