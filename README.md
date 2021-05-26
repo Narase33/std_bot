@@ -33,7 +33,7 @@ If the bot can't find the token in the symbol index, the built-in search is used
 
 I'm very grateful for every form of feedback, positive or negative.
 
-You can give feedback under every comment std_bot makes or write private messages.
+The best way is right here in this repository.
 
 ## I don't want the bot to respond to my comments
 
@@ -49,40 +49,11 @@ Please do not use any markdown symbols. The commands are only recognized if ther
 
 I'm sorry to hear that. Best you can do is to give me some feedback and ignore the bot via Reddit
 
-## Patchnotes
-
-- 0.3:
-
-  - Using symbol index instead of built-in search to find links for tokens
-    - More and better results
-  - Tokens used by OP in code or text will be marked as "linked"
-    - OP probably knows about tokens they use
-  - Added built-in search as backup for missing symbols
-    - It seems like the symbol index is not *that* consistent
-  - Added message if someone messages the bot without usage of a command
-    - There are a lot of people replying to the bot instead of the one they intended to
-
-- 0.2:
-
-  - No longer using "best match" to find a link for a token
-    - Uncertain results are not helpful
-
-  - Only responding to top level comments from now on
-    - To reduce spam
-  - Added commands to interact with bot
-    - **!std ignore_me** makes me ignore you
-    - **!std follow_me** makes me follow you again
-    - **!std** forces linking of your comment even if not top comment or already fully linked
-
-- 0.1:
-
-  - Starting the bot
-
 ## ToDo
 
 - [ ] ~~Adding other popular frameworks (like boost::)~~
   - [ ] Probably not possible due to missing search function and symbol index
-- [ ] Recognizing used links even if they're not bound to the token
+- [x] Recognizing used links even if they're not bound to the token
 - [x] Tokens used by OP should be added to index as OP probably knows about them
   - [ ] This should also work if OP uses the 'using namespace std;' expression (as "std::" normally indicates STL tokens)
 
